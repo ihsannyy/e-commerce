@@ -187,7 +187,7 @@ export default function AdminDashboardPage() {
       {/* MAIN */}
       <main>
         {/* HERO TITLE */}
-        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+        <div className="admin-header-title" style={{ textAlign: 'center', marginBottom: '3rem' }}>
           <h1 style={{ fontSize: '3rem', transform: 'rotate(1deg)', display: 'inline-block', background: '#FFF', padding: '0.5rem 2rem', border: '3px solid #000', boxShadow: 'var(--neo-shadow-md)' }}>
             Admin Dashboard
           </h1>
@@ -196,7 +196,7 @@ export default function AdminDashboardPage() {
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2.5rem', alignItems: 'start' }}>
+        <div className="admin-grid-layout" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2.5rem', alignItems: 'start' }}>
           
           {/* PRODUCT FORM */}
           <div className="order-card" style={{ background: '#FFF' }}>
@@ -317,7 +317,10 @@ export default function AdminDashboardPage() {
             </h2>
 
             {loadingProducts ? (
-              <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Loading Inventory...</div>
+              <div className="loader-container">
+                <div className="brutal-spinner" style={{ width: '40px', height: '40px' }}></div>
+                <p className="loader-text" style={{ fontSize: '0.95rem' }}>Loading Inventory...</p>
+              </div>
             ) : productsError ? (
               <div style={{ color: 'var(--danger)', textAlign: 'center', padding: '2rem' }}>Failed to load inventory.</div>
             ) : products.length === 0 ? (

@@ -193,8 +193,9 @@ export default function StorefrontPage() {
 
         {/* PRODUCTS SECTION */}
         {loadingProducts ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-            Loading premium products...
+          <div className="loader-container">
+            <div className="brutal-spinner"></div>
+            <p className="loader-text">Fetching Premium Gear...</p>
           </div>
         ) : productsError ? (
           <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--danger)' }}>
