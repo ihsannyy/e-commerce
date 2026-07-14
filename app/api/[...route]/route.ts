@@ -3,7 +3,7 @@ import { handle } from 'hono/vercel'
 import { trpcServer } from '@hono/trpc-server'
 import { initTRPC, TRPCError } from '@trpc/server'
 import { z } from 'zod'
-import { db } from '../../../lib/redis'
+import { db } from '../../../lib/db'
 
 // Initialize tRPC
 const t = initTRPC.create()
