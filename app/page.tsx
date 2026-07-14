@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import Link from 'next/link'
 import { trpc } from '../lib/trpc'
 
 const USER_ID = 'user_epic_gamer_99' // Mock static user ID for demonstration
@@ -147,13 +146,6 @@ export default function StorefrontPage() {
           EPIC<span style={{ color: 'var(--accent-secondary)' }}>STORE</span>
         </a>
         <div className="nav-actions">
-          <Link
-            href="/admin"
-            className="cart-button"
-            style={{ background: 'var(--brutal-yellow)', textDecoration: 'none', marginRight: '0.5rem' }}
-          >
-            ⚡ Admin
-          </Link>
           <button className="cart-button" onClick={() => setIsCartOpen(true)}>
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
             Cart
