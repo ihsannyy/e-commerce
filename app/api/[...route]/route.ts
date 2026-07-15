@@ -334,6 +334,20 @@ const appRouter = t.router({
       products.splice(index, 1)
       await db.set('products', JSON.stringify(products))
       return { success: true }
+    }),
+
+  // Mutation to verify admin password (Admin Auth)
+  loginAdmin: t.procedure
+    .input(z.object({ password: z.string() }))
+    .mutation(async ({ input }) => {
+      const correctPassword = process.env.ADMIN_PASSWORD || 'admin123'
+      if (input.password === correctPassword) {
+        return { success: true, token: 'session_admin_token_epic' }
+      }
+      throw new TRPCError({
+        code: 'UNAUTHORIZED',
+        message: 'Password admin salah!'
+      })
     })
 })
 
