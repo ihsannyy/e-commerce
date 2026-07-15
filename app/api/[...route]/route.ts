@@ -122,6 +122,77 @@ const DEFAULT_PRODUCTS: Product[] = [
   }
 ]
 
+interface OrderItemInfo {
+  productId: string
+  name: string
+  price: number
+  quantity: number
+}
+
+interface OrderInfo {
+  id: string
+  date: string
+  items: OrderItemInfo[]
+  total: number
+  status: string
+  shipping: {
+    name: string
+    phone: string
+    city: string
+    address: string
+  }
+}
+
+// Send Telegram Notification to the admin about new order
+async function sendTelegramNotification(order: OrderInfo) {
+  const token = process.env.TELEGRAM_BOT_TOKEN
+  const chatId = process.env.TELEGRAM_CHAT_ID
+
+  if (!token || !chatId) {
+    console.log('ℹ️ Telegram notification skipped: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured in env variables.')
+    return
+  }
+
+  try {
+    const itemsList = order.items
+      .map((item: OrderItemInfo) => `• *${item.name}* (x${item.quantity}) - Rp ${item.price.toLocaleString('id-ID')}`)
+      .join('\n')
+
+    const message = `🔔 *PESANAN BARU MASUK! (NEW ORDER)* 🔔\n` +
+      `----------------------------------\n` +
+      `📦 *ID Pesanan:* \`${order.id}\`\n` +
+      `📅 *Tanggal:* ${new Date(order.date).toLocaleString('id-ID')}\n\n` +
+      `👤 *Penerima:* *${order.shipping.name}*\n` +
+      `📞 *No. HP:* \`${order.shipping.phone}\`\n` +
+      `🏙️ *Kota:* ${order.shipping.city}\n` +
+      `🏠 *Alamat:* ${order.shipping.address}\n\n` +
+      `🛒 *Daftar Barang:*\n${itemsList}\n\n` +
+      `💰 *Total Bayar:* *Rp ${order.total.toLocaleString('id-ID')}*\n` +
+      `----------------------------------`
+
+    const url = `https://api.telegram.org/bot${token}/sendMessage`
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'Markdown'
+      })
+    })
+
+    if (!response.ok) {
+      const errText = await response.text()
+      console.error('⚠️ Failed to send Telegram notification:', errText)
+    } else {
+      console.log('✅ Telegram order notification sent successfully!')
+    }
+  } catch (error) {
+    console.error('⚠️ Error sending Telegram notification:', error)
+  }
+}
+
 // Initialize products in "database" (Redis)
 const getInitializedProducts = async (): Promise<Product[]> => {
   const data = await db.get('products')
@@ -320,6 +391,11 @@ const appRouter = t.router({
 
       // Clear Cart
       await db.set(cartKey, JSON.stringify([]))
+
+      // Trigger Telegram notification in the background
+      sendTelegramNotification(newOrder).catch(err => {
+        console.error('⚠️ Telegram notification background error:', err)
+      })
 
       return { success: true, order: newOrder }
     }),
