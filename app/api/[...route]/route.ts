@@ -12,9 +12,15 @@ const t = initTRPC.create()
 interface Product {
   id: string
   name: string
+  nameEn?: string
+  nameId?: string
   price: number
   description: string
+  descriptionEn?: string
+  descriptionId?: string
   category: string
+  categoryEn?: string
+  categoryId?: string
   image: string
   stock: number
 }
@@ -27,54 +33,90 @@ const DEFAULT_PRODUCTS: Product[] = [
   {
     id: 'prod-1',
     name: 'Apex Mechanical Keyboard',
+    nameEn: 'Apex Mechanical Keyboard',
+    nameId: 'Keyboard Mekanikal Apex',
     price: 1890000,
     description: 'Compact 75% mechanical keyboard with hot-swappable yellow switches, PBT keycaps, and custom RGB backlight options.',
+    descriptionEn: 'Compact 75% mechanical keyboard with hot-swappable yellow switches, PBT keycaps, and custom RGB backlight options.',
+    descriptionId: 'Keyboard mekanikal 75% ringkas dengan switch kuning hot-swappable, keycap PBT, dan opsi lampu latar RGB kustom.',
     category: 'Peripherals',
+    categoryEn: 'Peripherals',
+    categoryId: 'Periferal',
     image: createMockImage('%234F46E5', 'Apex Keyboard'),
     stock: 12
   },
   {
     id: 'prod-2',
     name: 'UltraWide Curved Monitor 34"',
+    nameEn: 'UltraWide Curved Monitor 34"',
+    nameId: 'Monitor Lengkung UltraWide 34"',
     price: 6490000,
     description: 'Immersive 34-inch curved productivity and gaming monitor featuring a 144Hz refresh rate, HDR400, and 99% sRGB.',
+    descriptionEn: 'Immersive 34-inch curved productivity and gaming monitor featuring a 144Hz refresh rate, HDR400, and 99% sRGB.',
+    descriptionId: 'Monitor produktivitas dan gaming lengkung 34 inci yang imersif dilengkapi refresh rate 144Hz, HDR400, dan sRGB 99%.',
     category: 'Displays',
+    categoryEn: 'Displays',
+    categoryId: 'Layar',
     image: createMockImage('%2306B6D4', 'Curved Monitor'),
     stock: 5
   },
   {
     id: 'prod-3',
     name: 'Studio Wireless Headphones',
+    nameEn: 'Studio Wireless Headphones',
+    nameId: 'Headphone Studio Nirkabel',
     price: 2450000,
     description: 'Premium over-ear headphones with active hybrid noise cancelling, 40-hour battery life, and high-fidelity sound driver.',
+    descriptionEn: 'Premium over-ear headphones with active hybrid noise cancelling, 40-hour battery life, and high-fidelity sound driver.',
+    descriptionId: 'Headphone over-ear premium dengan peredam bising hibrida aktif, daya tahan baterai 40 jam, dan driver suara berkualitas tinggi.',
     category: 'Audio',
+    categoryEn: 'Audio',
+    categoryId: 'Audio',
     image: createMockImage('%23EC4899', 'Studio Headphones'),
     stock: 20
   },
   {
     id: 'prod-4',
     name: 'Ergonomic Mesh Office Chair',
+    nameEn: 'Ergonomic Mesh Office Chair',
+    nameId: 'Kursi Kantor Mesh Ergonomis',
     price: 3200000,
     description: 'Full mesh ergonomic office chair with adjustable 3D armrests, lumbar support, and tilt-locking mechanism.',
+    descriptionEn: 'Full mesh ergonomic office chair with adjustable 3D armrests, lumbar support, and tilt-locking mechanism.',
+    descriptionId: 'Kursi kantor ergonomis jaring penuh dengan sandaran tangan 3D yang dapat disesuaikan, penopang lumbar, dan mekanisme penguncian kemiringan.',
     category: 'Furniture',
+    categoryEn: 'Furniture',
+    categoryId: 'Furnitur',
     image: createMockImage('%2310B981', 'Mesh Chair'),
     stock: 8
   },
   {
     id: 'prod-5',
     name: 'MagSafe Wireless Charger Stand',
+    nameEn: 'MagSafe Wireless Charger Stand',
+    nameId: 'Dudukan Charger Nirkabel MagSafe',
     price: 550000,
     description: 'Fast 15W wireless charging stand designed for iPhones and AirPods, with sleek aluminum alloy finishing.',
+    descriptionEn: 'Fast 15W wireless charging stand designed for iPhones and AirPods, with sleek aluminum alloy finishing.',
+    descriptionId: 'Dudukan pengisian daya nirkabel cepat 15W yang dirancang untuk iPhone dan AirPods, dengan lapisan paduan aluminium yang ramping.',
     category: 'Accessories',
+    categoryEn: 'Accessories',
+    categoryId: 'Aksesori',
     image: createMockImage('%23F59E0B', 'Charger Stand'),
     stock: 35
   },
   {
     id: 'prod-6',
     name: 'RGB Gaming Mouse',
+    nameEn: 'RGB Gaming Mouse',
+    nameId: 'Mouse Gaming RGB',
     price: 890000,
     description: 'Ultra-lightweight gaming mouse weighing only 59g, equipped with a 26k DPI optical sensor and paracord cable.',
+    descriptionEn: 'Ultra-lightweight gaming mouse weighing only 59g, equipped with a 26k DPI optical sensor and paracord cable.',
+    descriptionId: 'Mouse gaming ultra-ringan dengan berat hanya 59g, dilengkapi dengan sensor optik 26k DPI dan kabel paracord.',
     category: 'Peripherals',
+    categoryEn: 'Peripherals',
+    categoryId: 'Periferal',
     image: createMockImage('%238B5CF6', 'Gaming Mouse'),
     stock: 15
   }
@@ -208,7 +250,13 @@ const appRouter = t.router({
 
   // Mutation to checkout user's cart and place order
   checkout: t.procedure
-    .input(z.object({ userId: z.string() }))
+    .input(z.object({
+      userId: z.string(),
+      shippingName: z.string(),
+      shippingPhone: z.string(),
+      shippingCity: z.string(),
+      shippingAddress: z.string()
+    }))
     .mutation(async ({ input }) => {
       const cartKey = `cart:${input.userId}`
       const cartItemsStr = await db.get(cartKey)
@@ -258,7 +306,13 @@ const appRouter = t.router({
         date: new Date().toISOString(),
         items: orderItems,
         total: totalAmount,
-        status: 'PAID'
+        status: 'PAID',
+        shipping: {
+          name: input.shippingName,
+          phone: input.shippingPhone,
+          city: input.shippingCity,
+          address: input.shippingAddress
+        }
       }
       
       orders.unshift(newOrder)
