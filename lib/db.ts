@@ -3,7 +3,17 @@ import path from 'path'
 
 // Path to store our NeDB database file in the workspace root
 const DB_FILE = path.join(process.cwd(), 'db.nedb')
-const nedb = new Datastore({ filename: DB_FILE, autoload: true })
+// Cache NeDB instance in globalThis to prevent multiple instances
+// and disk reads on hot-reload in Next.js development
+const globalForNedb = globalThis as unknown as {
+  nedb: Datastore | undefined
+}
+
+const nedb = globalForNedb.nedb ?? new Datastore({ filename: DB_FILE, autoload: true })
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForNedb.nedb = nedb
+}
 
 export const db = {
   async get(key: string): Promise<string | null> {
