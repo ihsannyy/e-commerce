@@ -40,6 +40,9 @@ export default function AdminDashboardPage() {
   const [image, setImage] = useState('')
   const [stock, setStock] = useState(0)
 
+  // Webhook State
+  const [webhookUrl, setWebhookUrl] = useState('')
+
   // Verify auth on mount
   useEffect(() => {
     const token = sessionStorage.getItem('adminToken')
@@ -140,6 +143,18 @@ export default function AdminDashboardPage() {
     }
   })
 
+  // Setup Telegram Webhook
+  const registerWebhookMutation = useMutation({
+    mutationFn: (url: string) => trpc.setupTelegramWebhook.mutate({ webhookUrl: url }),
+    onSuccess: (res) => {
+      addToast(res.description || 'Telegram Webhook Registered successfully!')
+      setWebhookUrl('')
+    },
+    onError: (err: { message?: string }) => {
+      addToast(err.message || 'Failed to register webhook', 'error')
+    }
+  })
+
   // Handle Login Submit
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -152,6 +167,13 @@ export default function AdminDashboardPage() {
     sessionStorage.removeItem('adminToken')
     setIsAuthenticated(false)
     addToast('Logout Sukses!', 'error')
+  }
+
+  // Handle Webhook Submit
+  const handleRegisterWebhook = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!webhookUrl.trim()) return
+    registerWebhookMutation.mutate(webhookUrl.trim())
   }
 
   // Handle Form Submission
@@ -495,6 +517,41 @@ export default function AdminDashboardPage() {
                 </div>
               )}
             </div>
+
+            {/* TELEGRAM BOT WEBHOOK INTEGRATION */}
+            <div className="order-card" style={{ background: '#FFF', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <h2 style={{ fontSize: '1.5rem', borderBottom: '3px solid #000', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                🤖 Telegram Webhook
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                Connect your Telegram Bot. Enter your public tunnel URL (e.g. <code>https://your-tunnel.ngrok-free.app</code> or <code>https://yourdomain.com</code>) to register the webhook. Once registered, your bot can parse commands directly!
+              </p>
+              
+              <form onSubmit={handleRegisterWebhook} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '800', marginBottom: '0.3rem', fontSize: '0.9rem' }}>Public URL *</label>
+                  <input
+                    type="url"
+                    className="search-input"
+                    style={{ width: '100%' }}
+                    placeholder="e.g. https://your-tunnel.ngrok-free.app"
+                    value={webhookUrl}
+                    onChange={(e) => setWebhookUrl(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <button
+                  type="submit"
+                  className="btn-checkout"
+                  style={{ background: 'var(--brutal-pink)' }}
+                  disabled={registerWebhookMutation.isPending}
+                >
+                  {registerWebhookMutation.isPending ? 'Registering...' : '🔗 Register Webhook'}
+                </button>
+              </form>
+            </div>
+            
           </div>
         </main>
       )}

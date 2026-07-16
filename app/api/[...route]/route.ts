@@ -478,6 +478,42 @@ const appRouter = t.router({
         code: 'UNAUTHORIZED',
         message: 'Password admin salah!'
       })
+    }),
+
+  // Mutation to setup Telegram Webhook
+  setupTelegramWebhook: t.procedure
+    .input(z.object({ webhookUrl: z.string().url() }))
+    .mutation(async ({ input }) => {
+      const token = process.env.TELEGRAM_BOT_TOKEN
+      if (!token) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'TELEGRAM_BOT_TOKEN belum dikonfigurasi di berkas .env!'
+        })
+      }
+
+      // Ensure url ends with /api/telegram-webhook
+      const baseUrl = input.webhookUrl.replace(/\/$/, '')
+      const webhookEndpoint = `${baseUrl}/api/telegram-webhook`
+
+      try {
+        const response = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookEndpoint)}`)
+        const resData = (await response.json()) as { ok: boolean; description?: string }
+        if (resData.ok) {
+          return { success: true, description: resData.description || 'Webhook registered successfully!' }
+        } else {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Telegram API Error: ${resData.description}`
+          })
+        }
+      } catch (error) {
+        const err = error as { message?: string }
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: err.message || 'Gagal mendaftarkan webhook.'
+        })
+      }
     })
 })
 
@@ -485,6 +521,17 @@ export type AppRouter = typeof appRouter
 
 // Setup Hono application
 const app = new Hono().basePath('/api')
+
+// Mount Telegram webhook handler
+app.post('/telegram-webhook', async (c) => {
+  try {
+    const update = (await c.req.json()) as TelegramUpdate
+    await handleTelegramUpdate(update)
+  } catch (error) {
+    console.error('Error handling Telegram Webhook Update:', error)
+  }
+  return c.text('OK')
+})
 
 // Mount tRPC server handler on /api/trpc
 app.use('/trpc/*', trpcServer({
@@ -499,3 +546,208 @@ export const OPTIONS = handle(app)
 export const PUT = handle(app)
 export const DELETE = handle(app)
 export const PATCH = handle(app)
+
+// --- Telegram Webhook Logic & Types ---
+interface TelegramMessage {
+  chat: {
+    id: number
+  }
+  text?: string
+}
+
+interface TelegramUpdate {
+  message?: TelegramMessage
+}
+
+async function handleTelegramUpdate(update: TelegramUpdate) {
+  const message = update.message
+  if (!message || !message.text) return
+
+  const chatId = String(message.chat.id)
+  const authorizedChatId = process.env.TELEGRAM_CHAT_ID
+
+  // Security check: Only allow the authorized admin to run commands!
+  if (chatId !== authorizedChatId) {
+    await sendTelegramMessage(chatId, '❌ *Unauthorized / Akses Ditolak!*\nAnda bukan administrator toko ini.')
+    return
+  }
+
+  const text = message.text.trim()
+  const token = process.env.TELEGRAM_BOT_TOKEN
+  if (!token) return
+
+  // Command Router
+  if (text.startsWith('/start') || text.startsWith('/help')) {
+    const helpMessage = `🤖 *EpicStore Admin Bot* 🤖\n\n` +
+      `Berikut adalah perintah yang tersedia:\n\n` +
+      `📦 *Lihat Katalog:*\n` +
+      `• \`/list\` - Menampilkan semua daftar produk\n\n` +
+      `➕ *Tambah Produk:*\n` +
+      `• \`/add Nama | Harga | Stok | Kategori | Deskripsi\`\n` +
+      `_Contoh:_\n` +
+      `\`/add Mechanical Keyboard | 1500000 | 10 | Peripherals | Keyboard keren_\n\n` +
+      `⚡ *Edit Produk:*\n` +
+      `• \`/edit ID | Nama | Harga | Stok | Kategori | Deskripsi\`\n` +
+      `_Contoh:_\n` +
+      `\`/edit prod-123456 | Apex Keyboard | 1800000 | 5 | Peripherals | Keyboard edit_\n\n` +
+      `❌ *Hapus Produk:*\n` +
+      `• \`/delete ID\`\n` +
+      `_Contoh:_\n` +
+      `\`/delete prod-123456\``
+    await sendTelegramMessage(chatId, helpMessage)
+  } 
+  else if (text.startsWith('/list')) {
+    const products = await getInitializedProducts()
+    if (products.length === 0) {
+      await sendTelegramMessage(chatId, '📦 *Katalog kosong.*')
+      return
+    }
+    const listText = products
+      .map(p => `• \`${p.id}\` - *${p.name}*\n  Harga: Rp ${p.price.toLocaleString('id-ID')} | Stok: ${p.stock}\n  Kat: ${p.category}`)
+      .join('\n\n')
+    await sendTelegramMessage(chatId, `📦 *Daftar Katalog Produk (${products.length}):*\n\n${listText}`)
+  } 
+  else if (text.startsWith('/add')) {
+    try {
+      const params = text.replace('/add', '').trim().split('|').map((s: string) => s.trim())
+      if (params.length < 5) {
+        await sendTelegramMessage(chatId, '⚠️ *Format salah!*\nGunakan: `/add Nama | Harga | Stok | Kategori | Deskripsi`')
+        return
+      }
+      const [name, priceStr, stockStr, category, description] = params
+      const price = Number(priceStr)
+      const stock = Number(stockStr)
+
+      if (isNaN(price) || isNaN(stock)) {
+        await sendTelegramMessage(chatId, '⚠️ *Harga dan Stok harus berupa angka!*')
+        return
+      }
+
+      const products = await getInitializedProducts()
+      const colors = ['%234F46E5', '%2306B6D4', '%23EC4899', '%2310B981', '%23F59E0B', '%238B5CF6']
+      const randomColor = colors[Math.floor(Math.random() * colors.length)]
+      const fallbackImage = createMockImage(randomColor, encodeURIComponent(name))
+
+      const newProduct = {
+        id: `prod-${Math.floor(100000 + Math.random() * 900000)}`,
+        name,
+        nameEn: name,
+        nameId: name,
+        price,
+        description,
+        descriptionEn: description,
+        descriptionId: description,
+        category,
+        categoryEn: category,
+        categoryId: category,
+        image: fallbackImage,
+        stock
+      }
+      products.push(newProduct)
+      await db.set('products', JSON.stringify(products))
+
+      await sendTelegramMessage(chatId, `✅ *Produk Berhasil Ditambahkan!*\n\n` +
+        `🆔 *ID:* \`${newProduct.id}\`\n` +
+        `📦 *Nama:* ${newProduct.name}\n` +
+        `💰 *Harga:* Rp ${newProduct.price.toLocaleString('id-ID')}\n` +
+        `⚡ *Stok:* ${newProduct.stock}\n` +
+        `🏷️ *Kategori:* ${newProduct.category}`)
+    } catch {
+      await sendTelegramMessage(chatId, '❌ *Gagal menambahkan produk. Terjadi kesalahan internal.*')
+    }
+  } 
+  else if (text.startsWith('/edit')) {
+    try {
+      const params = text.replace('/edit', '').trim().split('|').map((s: string) => s.trim())
+      if (params.length < 6) {
+        await sendTelegramMessage(chatId, '⚠️ *Format salah!*\nGunakan: `/edit ID | Nama | Harga | Stok | Kategori | Deskripsi`')
+        return
+      }
+      const [id, name, priceStr, stockStr, category, description] = params
+      const price = Number(priceStr)
+      const stock = Number(stockStr)
+
+      if (isNaN(price) || isNaN(stock)) {
+        await sendTelegramMessage(chatId, '⚠️ *Harga dan Stok harus berupa angka!*')
+        return
+      }
+
+      const products = await getInitializedProducts()
+      const index = products.findIndex(p => p.id === id)
+      if (index === -1) {
+        await sendTelegramMessage(chatId, `❌ *Produk dengan ID* \`${id}\` *tidak ditemukan!*`)
+        return
+      }
+
+      const existingProduct = products[index]
+      products[index] = {
+        ...existingProduct,
+        name,
+        nameEn: name,
+        nameId: name,
+        price,
+        stock,
+        category,
+        categoryEn: category,
+        categoryId: category,
+        description,
+        descriptionEn: description,
+        descriptionId: description
+      }
+
+      await db.set('products', JSON.stringify(products))
+      await sendTelegramMessage(chatId, `✅ *Produk Berhasil Diperbarui!*\n\n` +
+        `🆔 *ID:* \`${id}\`\n` +
+        `📦 *Nama Baru:* ${name}\n` +
+        `💰 *Harga:* Rp ${price.toLocaleString('id-ID')}\n` +
+        `⚡ *Stok:* ${stock}\n` +
+        `🏷️ *Kategori:* ${category}`)
+    } catch {
+      await sendTelegramMessage(chatId, '❌ *Gagal memperbarui produk. Terjadi kesalahan internal.*')
+    }
+  } 
+  else if (text.startsWith('/delete')) {
+    try {
+      const id = text.replace('/delete', '').trim()
+      if (!id) {
+        await sendTelegramMessage(chatId, '⚠️ *Format salah!*\nGunakan: `/delete ID`')
+        return
+      }
+
+      const products = await getInitializedProducts()
+      const index = products.findIndex(p => p.id === id)
+      if (index === -1) {
+        await sendTelegramMessage(chatId, `❌ *Produk dengan ID* \`${id}\` *tidak ditemukan!*`)
+        return
+      }
+
+      const deletedProduct = products[index]
+      products.splice(index, 1)
+      await db.set('products', JSON.stringify(products))
+
+      await sendTelegramMessage(chatId, `🗑️ *Produk Berhasil Dihapus!*\n\n` +
+        `🆔 *ID:* \`${id}\`\n` +
+        `📦 *Nama:* ${deletedProduct.name}`)
+    } catch {
+      await sendTelegramMessage(chatId, '❌ *Gagal menghapus produk. Terjadi kesalahan internal.*')
+    }
+  }
+}
+
+async function sendTelegramMessage(chatId: string, text: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN
+  if (!token) return
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: 'Markdown'
+      })
+    })
+  } catch (err) {
+    console.error('Error sending message back to Telegram:', err)
+  }
+}
